@@ -28,6 +28,8 @@ import sys
 import tempfile
 import wave
 
+import track_names
+
 AUDIO_EXTS = {".mp3", ".wav", ".flac", ".ogg"}
 MAX_SECONDS = 120 * 60  # PSP audio playback limit per file
 
@@ -85,12 +87,6 @@ def fix_header(path):
         f.write(b"RIFF" + struct.pack("<I", len(body)) + body)
 
 
-def safe_name(stem):
-    # Keep names simple: ASCII letters/digits/space/_/-, max 40 chars.
-    s = re.sub(r"[^A-Za-z0-9 _-]", "", stem).strip()
-    return (s or "track")[:40].strip()
-
-
 def collect(inputs):
     files = []
     for item in inputs:
@@ -105,14 +101,8 @@ def collect(inputs):
     return files
 
 
-def convert_one(src, out_dir, encoder, used_names):
-    base = safe_name(os.path.splitext(os.path.basename(src))[0])
-    name, n = base, 2
-    while name.lower() in used_names:
-        name = f"{base}_{n}"
-        n += 1
-    used_names.add(name.lower())
-
+def convert_one(src, out_dir, encoder, name):
+    """Convert `src` to out_dir/<name>.gta. `name` is the final in-game name (no extension)."""
     with tempfile.TemporaryDirectory() as tmp:
         wav = os.path.join(tmp, "in.wav")
         at3 = os.path.join(tmp, "out.at3")
@@ -140,6 +130,14 @@ def main():
     ap.add_argument("--out", default="gta_output", help="output folder (default: gta_output)")
     ap.add_argument("--psp", help="PSP Memory Stick drive/root, e.g. E: or /media/psp")
     ap.add_argument("--game", help="game ID, e.g. ULUS10041 (LCS US), ULUS10160 (VCS US)")
+    ap.add_argument("--name-style", choices=track_names.STYLES, default="artist-title",
+                    help="how in-game names are built (default: artist-title, from tags when present)")
+    ap.add_argument("--keep-punctuation", action="store_true",
+                    help="keep ' & , . ! ( ) in names (default: letters, digits, spaces and hyphens only)")
+    ap.add_argument("--max-length", type=int, default=40, help="longest in-game name (default 40)")
+    ap.add_argument("--fix-caps", action="store_true", help="fix ALL CAPS / all lowercase names")
+    ap.add_argument("--number", action="store_true", help='prefix names with "01 - ", "02 - " in input order')
+    ap.add_argument("--dry-run", action="store_true", help="only show the in-game names, convert nothing")
     args = ap.parse_args()
 
     enc = find_encoder()
@@ -156,13 +154,21 @@ def main():
             sys.exit("--psp needs --game (for example --game ULUS10041).")
         out_dir = os.path.join(args.psp, "PSP", "SAVEDATA", args.game.upper() + "CUSTOMTRACKS")
         print(f"Writing straight to: {out_dir}")
+
+    suggested = [track_names.suggest_name(f, args.name_style, args.keep_punctuation,
+                                          args.max_length, args.fix_caps) for f in files]
+    names = track_names.number_and_dedupe(suggested, args.keep_punctuation, args.max_length, args.number)
+    if args.dry_run:
+        for f, n in zip(files, names):
+            print(f"{os.path.basename(f)}  ->  {n}.gta")
+        return
     os.makedirs(out_dir, exist_ok=True)
 
-    used, ok, total_secs = set(), 0, 0
-    for i, f in enumerate(files, 1):
-        print(f"[{i}/{len(files)}] {os.path.basename(f)}")
+    ok, total_secs = 0, 0
+    for i, (f, name) in enumerate(zip(files, names), 1):
+        print(f"[{i}/{len(files)}] {os.path.basename(f)}  ->  {name}")
         try:
-            dest, secs = convert_one(f, out_dir, enc, used)
+            dest, secs = convert_one(f, out_dir, enc, name)
             total_secs += secs
             ok += 1
             print(f"  -> {os.path.basename(dest)}  ({secs/60:.1f} min, "

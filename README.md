@@ -44,11 +44,19 @@ becomes `ULUS10160`). The game needs an existing save. In game: **Pause > Audio 
 My Songs ON**, then get in a vehicle; D-pad left/right changes track.
 The EU IDs come from community guides and have not been tested here.
 
+## Song names in game
+
+Tracks are shown in game by their file name, so the converter names each song from its tags
+(`Artist - Title`) or a tidied-up file name, and lets you edit, reorder and number them.
+See [docs/NAMING.md](docs/NAMING.md).
+
 ## Command line
 
 ```
 python src/mp3_to_gta.py song1.mp3 song2.mp3 "C:\Music\Folder" --out gta_output
 python src/mp3_to_gta.py "C:\Music\Folder" --psp E: --game ULUS10160
+python src/mp3_to_gta.py "C:\Music\Folder" --dry-run              # preview in-game names
+python src/mp3_to_gta.py "C:\Music\Folder" --number --keep-punctuation
 ```
 
 Run from source: `pip install -r requirements.txt`, put `atracdenc.exe` next to the scripts
