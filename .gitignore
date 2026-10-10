@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
+gta_output/
+*.gta
+*.at3
+src/atracdenc.exe
+src/atracdenc
+installer/app.exe
+installer/*Setup.exe
